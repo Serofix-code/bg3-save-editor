@@ -1,0 +1,12 @@
+{
+  "name": "bg3-local-save-editor-public",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local BG3 save inspection and edit helper with save-folder detection and manual upload fallback.",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

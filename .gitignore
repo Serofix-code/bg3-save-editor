@@ -1,0 +1,7 @@
+node_modules/
+work/
+backups/
+*.log
+*.lsv
+*.webp
+*.tmp
