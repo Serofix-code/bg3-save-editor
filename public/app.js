@@ -1,4 +1,5 @@
 const state = {
+  staticMode: false,
   config: null,
   saves: [],
   filtered: [],
@@ -148,6 +149,59 @@ function setControls(enabled) {
   ]) {
     item.disabled = !enabled;
   }
+}
+
+function setBrowserOnlyMode(error) {
+  state.staticMode = true;
+  state.config = {
+    storyRoot: "",
+    divine: "",
+    divineExists: false,
+    storyRootExists: false,
+    knownLevels: [],
+    goldTemplate: "1c3c9c74-34a1-4685-989e-410dc080be6f"
+  };
+  setStatus("Browser-only");
+  els.configText.textContent = "Opened from a static website. Full save editing needs the local Node helper running on this PC.";
+  els.storyRoot.value = "";
+  els.divine.value = "";
+  els.saveCount.textContent = "0 local saves";
+  els.saveList.innerHTML = `
+    <div class="card">
+      <div class="card-title">Browser-only mode</div>
+      <div class="card-sub">A hosted webpage cannot scan local BG3 folders, run Divine.exe, write backups, restore modsettings.lsx, or repack .lsv saves.</div>
+      <div class="card-sub">Download the repo, run START SERVER.bat, then open http://localhost:8081 for the full editor.</div>
+    </div>
+  `;
+  els.selectedFolder.textContent = "Static website";
+  els.saveTitle.textContent = "Download and run locally for full editing";
+  els.facts.innerHTML = "";
+  for (const [label, value] of [
+    ["Mode", "Browser-only"],
+    ["Full editor", "Needs local server"],
+    ["Reason", "Browsers cannot access or modify arbitrary PC files"]
+  ]) {
+    const el = document.createElement("span");
+    el.className = "fact";
+    el.textContent = `${label}: ${value}`;
+    els.facts.append(el);
+  }
+  setControls(false);
+  els.goldAmount.disabled = false;
+  els.goldCommand.disabled = false;
+  els.goldCommandText.value = "";
+  log(`Browser-only mode is active.
+
+The public website can show instructions and build simple paste commands, but it cannot edit BG3 saves by itself.
+
+To use the real save editor:
+1. Download the GitHub ZIP.
+2. Extract it.
+3. Double-click START SERVER.bat.
+4. Open http://localhost:8081.
+
+Startup error:
+${error?.message || error || "No local helper server responded."}`);
 }
 
 function partyCharacters() {
@@ -402,6 +456,13 @@ function fileToBase64(file) {
 }
 
 async function uploadSave() {
+  if (state.staticMode) {
+    const lsv = els.uploadLsv.files?.[0];
+    log(lsv
+      ? `Selected ${lsv.name}, but browser-only mode cannot unpack .lsv saves. Run START SERVER.bat locally to use manual upload.`
+      : "Choose a .lsv file first. Browser-only mode can select a file, but it cannot unpack/repack it without the local helper.");
+    return;
+  }
   const lsv = els.uploadLsv.files?.[0];
   if (!lsv) {
     log("Choose a .lsv file first.");
@@ -426,6 +487,10 @@ async function uploadSave() {
 }
 
 async function applyPaths() {
+  if (state.staticMode) {
+    log("Path scanning and manual path use need the local helper server. Run START SERVER.bat, then open http://localhost:8081.");
+    return;
+  }
   setStatus("Updating paths");
   const config = await api("/api/set-paths", {
     storyRoot: els.storyRoot.value,
@@ -438,7 +503,10 @@ async function applyPaths() {
 }
 
 els.refresh.addEventListener("click", () => loadSaves().catch((error) => log(error.message)));
-els.rescan.addEventListener("click", () => loadConfig().then(loadSaves).catch((error) => log(error.message)));
+els.rescan.addEventListener("click", () => loadConfig().then(loadSaves).catch((error) => {
+  if (state.staticMode) setBrowserOnlyMode(error);
+  else log(error.message);
+}));
 els.search.addEventListener("input", renderSaves);
 els.applyPaths.addEventListener("click", () => applyPaths().catch((error) => {
   setStatus("Error");
@@ -485,6 +553,5 @@ loadConfig()
     return loadSaves();
   })
   .catch((error) => {
-    setStatus("Error");
-    log(error.message);
+    setBrowserOnlyMode(error);
   });

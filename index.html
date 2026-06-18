@@ -146,10 +146,11 @@
       <header>
         <p class="eyebrow">Baldur's Gate 3</p>
         <h1>Local Save Editor</h1>
-        <p class="lead">A local web tool for inspecting and experimenting with BG3 save files. It runs on the user's own PC so saves stay local.</p>
+        <p class="lead">A local web tool for inspecting and experimenting with BG3 save files. The hosted site is the download page; the full editor runs on the user's own PC so saves stay local.</p>
         <div class="actions">
           <a class="button primary" href="https://github.com/Serofix-code/bg3-save-editor">Open GitHub Repo</a>
           <a class="button" href="https://github.com/Serofix-code/bg3-save-editor/archive/refs/heads/main.zip">Download ZIP</a>
+          <a class="button" href="public/">Open Static Preview</a>
         </div>
       </header>
 
@@ -169,6 +170,11 @@
             <p>Creates backups, restores mod order from a save, changes metadata fields, and repacks edited copies.</p>
           </div>
         </div>
+      </section>
+
+      <section>
+        <h2>Why It Runs Locally</h2>
+        <p class="warning">A normal website cannot scan <code>C:\Users</code>, run <code>Divine.exe</code>, restore <code>modsettings.lsx</code>, write backups, or repack BG3 saves. Those actions need the local helper started by <code>START SERVER.bat</code>.</p>
       </section>
 
       <section>
