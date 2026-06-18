@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>BG3 Local Save Editor</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Baldur's Gate 3</p>
+        <h1>Local Save Editor</h1>
+      </div>
+      <div class="status" id="status">Starting</div>
+    </header>
+
+    <main class="shell">
+      <aside class="saves">
+        <div class="toolbar">
+          <input id="search" type="search" placeholder="Search saves">
+          <button id="refresh" type="button">Refresh</button>
+        </div>
+        <div class="count" id="saveCount">0 saves</div>
+        <div id="saveList" class="save-list"></div>
+      </aside>
+
+      <section class="editor">
+        <div class="banner">
+          <strong>Original saves are not overwritten.</strong>
+          Repacked saves can trigger BG3's tamper/corruption warning. Use copies for testing.
+        </div>
+
+        <section class="paths">
+          <div class="path-head">
+            <div>
+              <h3>Save Location</h3>
+              <p id="configText" class="muted">Scanning for BG3 saves and Divine.exe.</p>
+            </div>
+            <button id="rescanBtn" type="button">Rescan</button>
+          </div>
+          <div class="path-grid">
+            <label>
+              Savegames Story folder
+              <input id="storyRootInput" type="text" placeholder="C:\Users\Name\AppData\Local\Larian Studios\Baldur's Gate 3\PlayerProfiles\Public\Savegames\Story">
+            </label>
+            <label>
+              Divine.exe path
+              <input id="divineInput" type="text" placeholder="...\ExportTool...\tools\Divine.exe">
+            </label>
+            <button id="applyPathsBtn" type="button">Use Paths</button>
+          </div>
+          <div class="upload-grid">
+            <label>
+              Manual .lsv upload
+              <input id="uploadLsv" type="file" accept=".lsv">
+            </label>
+            <label>
+              Optional thumbnail .webp
+              <input id="uploadWebp" type="file" accept=".webp">
+            </label>
+            <button id="uploadBtn" type="button">Upload Save</button>
+          </div>
+        </section>
+
+        <section class="summary">
+          <img id="thumb" class="thumb" alt="" hidden>
+          <div class="summary-text">
+            <p class="muted" id="selectedFolder">No save selected</p>
+            <h2 id="saveTitle">Select a save</h2>
+            <div class="facts" id="facts"></div>
+          </div>
+        </section>
+
+        <section class="actions">
+          <button id="backupBtn" type="button" disabled>Backup Original</button>
+          <button id="restoreModsBtn" type="button" disabled>Restore Mod Order From Save</button>
+          <button id="repackBtn" type="button" disabled>Create Edited Copy</button>
+        </section>
+
+        <section class="quick">
+          <label>
+            Save name
+            <input id="saveNameInput" type="text" disabled>
+          </label>
+          <label>
+            Level preset
+            <select id="levelSelect" disabled>
+              <option value="">Select a level</option>
+            </select>
+          </label>
+          <label>
+            Current level ID
+            <input id="levelInput" type="text" disabled>
+          </label>
+          <label>
+            Leader preset
+            <select id="leaderSelect" disabled>
+              <option value="">Select a leader</option>
+            </select>
+          </label>
+          <label>
+            Leader name shown on save
+            <input id="leaderInput" type="text" disabled>
+          </label>
+          <label>
+            Repack level cache
+            <select id="levelCacheMode" disabled>
+              <option value="keep">Keep saved LevelCache</option>
+              <option value="cre">Remove CRE creche LevelCache</option>
+              <option value="all">Remove all LevelCache</option>
+            </select>
+          </label>
+          <button id="applyQuickBtn" type="button" disabled>Apply Fields To Work Copy</button>
+        </section>
+
+        <section class="advanced">
+          <h3>Gold Editor</h3>
+          <div class="gold-grid">
+            <label>
+              Gold amount
+              <input id="goldAmountInput" type="number" min="0" max="2000000000" value="10000" disabled>
+            </label>
+            <button id="goldCommandBtn" type="button" disabled>Build Script Extender Command</button>
+            <button id="goldGlobalsBtn" type="button" disabled>Set Existing Gold Stacks In Work Copy</button>
+          </div>
+          <textarea id="goldCommandText" class="small-code" spellcheck="false" readonly></textarea>
+          <p class="hint">The Script Extender command is safest when the save can load. Editing existing gold stacks changes Globals.lsx and needs a repacked copy.</p>
+        </section>
+
+        <section class="tabs">
+          <button class="tab active" type="button" data-tab="overview">Overview</button>
+          <button class="tab" type="button" data-tab="saveinfo">SaveInfo.json</button>
+          <button class="tab" type="button" data-tab="meta">meta.lsx</button>
+          <button class="tab" type="button" data-tab="globals">Globals.lsx</button>
+        </section>
+
+        <section class="panel active" id="overviewPanel">
+          <div class="grid">
+            <div>
+              <h3>Party</h3>
+              <div id="party" class="cards"></div>
+            </div>
+            <div>
+              <h3>Modules</h3>
+              <div id="mods" class="module-list"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel" id="saveinfoPanel">
+          <div class="editorbar">
+            <button type="button" data-load-text="SaveInfo.json" disabled>Load</button>
+            <button type="button" data-save-text="SaveInfo.json" disabled>Save To Work Copy</button>
+          </div>
+          <textarea id="saveinfoText" spellcheck="false"></textarea>
+        </section>
+
+        <section class="panel" id="metaPanel">
+          <div class="editorbar">
+            <button type="button" data-load-text="meta.lsx" disabled>Load</button>
+            <button type="button" data-save-text="meta.lsx" disabled>Save To Work Copy</button>
+          </div>
+          <textarea id="metaText" spellcheck="false"></textarea>
+        </section>
+
+        <section class="panel" id="globalsPanel">
+          <div class="editorbar">
+            <button type="button" data-load-text="Globals.lsx" disabled>Load Read Only</button>
+          </div>
+          <textarea id="globalsText" spellcheck="false" readonly></textarea>
+        </section>
+
+        <pre id="log" class="log"></pre>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
