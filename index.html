@@ -4,195 +4,373 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>BG3 Local Save Editor</title>
-    <style>
-      :root {
-        color-scheme: dark;
-        --bg: #101113;
-        --panel: #1b1d21;
-        --line: #3a3f49;
-        --text: #f1e9d8;
-        --muted: #b9ad95;
-        --accent: #47bdd0;
-        --gold: #d0a14d;
-      }
-      * {
-        box-sizing: border-box;
-      }
-      body {
-        margin: 0;
-        min-height: 100vh;
-        background: #101113;
-        color: var(--text);
-        font-family: "Segoe UI", Arial, sans-serif;
-      }
-      main {
-        width: min(980px, calc(100% - 32px));
-        margin: 0 auto;
-        padding: 42px 0;
-      }
-      header {
-        padding-bottom: 24px;
-        border-bottom: 1px solid var(--line);
-      }
-      .eyebrow {
-        margin: 0 0 8px;
-        color: var(--gold);
-        font-size: 13px;
-        font-weight: 700;
-        text-transform: uppercase;
-      }
-      h1 {
-        margin: 0;
-        font-size: clamp(32px, 6vw, 58px);
-        line-height: 1.02;
-        letter-spacing: 0;
-      }
-      .lead {
-        max-width: 760px;
-        margin: 18px 0 0;
-        color: var(--muted);
-        font-size: 18px;
-        line-height: 1.55;
-      }
-      .actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        margin-top: 22px;
-      }
-      a.button {
-        display: inline-flex;
-        min-height: 40px;
-        align-items: center;
-        border: 1px solid #61503a;
-        border-radius: 6px;
-        padding: 9px 13px;
-        color: var(--text);
-        background: #2b2419;
-        text-decoration: none;
-      }
-      a.button.primary {
-        border-color: #268392;
-        background: #0e4650;
-      }
-      section {
-        padding: 24px 0;
-        border-bottom: 1px solid var(--line);
-      }
-      h2 {
-        margin: 0 0 12px;
-        color: var(--gold);
-        font-size: 20px;
-      }
-      .grid {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 12px;
-      }
-      .card {
-        min-height: 116px;
-        border: 1px solid var(--line);
-        border-radius: 6px;
-        padding: 14px;
-        background: var(--panel);
-      }
-      .card strong {
-        display: block;
-        margin-bottom: 7px;
-      }
-      .card p,
-      li,
-      code {
-        color: var(--muted);
-      }
-      p,
-      li {
-        line-height: 1.55;
-      }
-      code {
-        border: 1px solid var(--line);
-        border-radius: 4px;
-        padding: 2px 5px;
-        background: #16181c;
-      }
-      pre {
-        overflow: auto;
-        border: 1px solid var(--line);
-        border-radius: 6px;
-        padding: 12px;
-        background: #16181c;
-      }
-      pre code {
-        border: 0;
-        padding: 0;
-        background: transparent;
-      }
-      .warning {
-        border: 1px solid #74512d;
-        border-radius: 6px;
-        padding: 12px;
-        color: #f6d79b;
-        background: #261b12;
-      }
-      @media (max-width: 780px) {
-        .grid {
-          grid-template-columns: 1fr;
-        }
-      }
-    </style>
+    <link rel="stylesheet" href="styles.css">
   </head>
   <body>
-    <main>
-      <header>
+    <header class="topbar">
+      <div>
         <p class="eyebrow">Baldur's Gate 3</p>
         <h1>Local Save Editor</h1>
-        <p class="lead">A local web tool for inspecting and experimenting with BG3 save files. The hosted site is the download page; the full editor runs on the user's own PC so saves stay local.</p>
-        <div class="actions">
-          <a class="button primary" href="https://github.com/Serofix-code/bg3-save-editor">Open GitHub Repo</a>
-          <a class="button" href="https://github.com/Serofix-code/bg3-save-editor/archive/refs/heads/main.zip">Download ZIP</a>
-          <a class="button" href="public/">Open Static Preview</a>
+      </div>
+      <div class="status" id="status">Starting</div>
+    </header>
+
+    <main class="shell">
+      <aside class="saves">
+        <div class="toolbar">
+          <input id="search" type="search" placeholder="Search saves">
+          <button id="refresh" type="button">Refresh</button>
         </div>
-      </header>
+        <div class="count" id="saveCount">0 saves</div>
+        <div id="saveList" class="save-list"></div>
+      </aside>
 
-      <section>
-        <h2>What It Does</h2>
-        <div class="grid">
-          <div class="card">
-            <strong>Save Discovery</strong>
-            <p>Scans common Windows BG3 save folders and can also import a manually selected <code>.lsv</code> file.</p>
-          </div>
-          <div class="card">
-            <strong>Save Inspection</strong>
-            <p>Shows party data, modules, save metadata, LevelCache entries, and editable extracted files.</p>
-          </div>
-          <div class="card">
-            <strong>Recovery Tools</strong>
-            <p>Creates backups, restores mod order from a save, changes metadata fields, and repacks edited copies.</p>
-          </div>
+      <section class="editor">
+        <div class="banner">
+          <strong>Original saves are not overwritten.</strong>
+          Repacked saves can trigger BG3's tamper/corruption warning. Use copies for testing.
         </div>
-      </section>
 
-      <section>
-        <h2>Why It Runs Locally</h2>
-        <p class="warning">A normal website cannot scan <code>C:\Users</code>, run <code>Divine.exe</code>, restore <code>modsettings.lsx</code>, write backups, or repack BG3 saves. Those actions need the local helper started by <code>START SERVER.bat</code>.</p>
-      </section>
+        <section class="paths">
+          <div class="path-head">
+            <div>
+              <h3>Save Location</h3>
+              <p id="configText" class="muted">Scanning for BG3 saves and Divine.exe.</p>
+            </div>
+            <button id="rescanBtn" type="button">Rescan</button>
+          </div>
+          <div class="path-grid">
+            <label>
+              Savegames Story folder
+              <input id="storyRootInput" type="text" placeholder="C:\Users\Name\AppData\Local\Larian Studios\Baldur's Gate 3\PlayerProfiles\Public\Savegames\Story">
+            </label>
+            <label>
+              Divine.exe path
+              <input id="divineInput" type="text" placeholder="...\ExportTool...\tools\Divine.exe">
+            </label>
+            <button id="applyPathsBtn" type="button">Use Paths</button>
+          </div>
+          <div class="upload-grid">
+            <label>
+              Manual .lsv upload
+              <input id="uploadLsv" type="file" accept=".lsv">
+            </label>
+            <label>
+              Optional thumbnail .webp
+              <input id="uploadWebp" type="file" accept=".webp">
+            </label>
+            <button id="uploadBtn" type="button">Upload Save</button>
+          </div>
+        </section>
 
-      <section>
-        <h2>How To Run</h2>
-        <ol>
-          <li>Download the ZIP from GitHub and extract it.</li>
-          <li>Install Node.js 18 or newer.</li>
-          <li>Install Norbyte/LSLib ExportTool so <code>Divine.exe</code> is available.</li>
-          <li>Double-click <code>START SERVER.bat</code>.</li>
-          <li>Open <code>http://localhost:8081</code>.</li>
-        </ol>
-        <pre><code>npm start</code></pre>
-      </section>
+        <section class="summary">
+          <img id="thumb" class="thumb" alt="" hidden>
+          <div class="summary-text">
+            <p class="muted" id="selectedFolder">No save selected</p>
+            <h2 id="saveTitle">Select a save</h2>
+            <div class="facts" id="facts"></div>
+          </div>
+        </section>
 
-      <section>
-        <h2>Safety</h2>
-        <p class="warning">Original saves are not overwritten. Repacked BG3 saves can still trigger the game's tamper/corruption warning, especially after deep <code>Globals.lsx</code> changes. Always test edited copies first.</p>
+        <section class="actions">
+          <button id="backupBtn" type="button" disabled>Backup Original</button>
+          <button id="restoreModsBtn" type="button" disabled>Restore Mod Order From Save</button>
+          <button id="repackBtn" type="button" disabled>Create Edited Copy</button>
+        </section>
+
+        <section class="quick">
+          <label>
+            Save name
+            <input id="saveNameInput" type="text" disabled>
+          </label>
+          <label>
+            Level preset
+            <select id="levelSelect" disabled>
+              <option value="">Select a level</option>
+            </select>
+          </label>
+          <label>
+            Current level ID
+            <input id="levelInput" type="text" disabled>
+          </label>
+          <label>
+            Leader preset
+            <select id="leaderSelect" disabled>
+              <option value="">Select a leader</option>
+            </select>
+          </label>
+          <label>
+            Leader name shown on save
+            <input id="leaderInput" type="text" disabled>
+          </label>
+          <label>
+            Displayed playtime hours
+            <input id="playHoursInput" type="number" min="0" max="1000000" step="0.01" disabled>
+          </label>
+          <label>
+            Repack level cache
+            <select id="levelCacheMode" disabled>
+              <option value="keep">Keep saved LevelCache</option>
+              <option value="cre">Remove CRE creche LevelCache</option>
+              <option value="all">Remove all LevelCache</option>
+            </select>
+          </label>
+          <button id="applyQuickBtn" type="button" disabled>Apply Fields To Work Copy</button>
+        </section>
+
+        <section class="advanced">
+          <h3>Gold Editor</h3>
+          <div class="gold-grid">
+            <label>
+              Gold amount
+              <input id="goldAmountInput" type="number" min="0" max="2000000000" value="10000" disabled>
+            </label>
+            <button id="goldCommandBtn" type="button" disabled>Build Script Extender Command</button>
+            <button id="goldGlobalsBtn" type="button" disabled>Set Existing Gold Stacks In Work Copy</button>
+          </div>
+          <textarea id="goldCommandText" class="small-code" spellcheck="false" readonly></textarea>
+          <p class="hint">The Script Extender command is safest when the save can load. Editing existing gold stacks changes Globals.lsx and needs a repacked copy.</p>
+        </section>
+
+        <section class="advanced">
+          <h3>Status Editor</h3>
+          <div class="tool-grid">
+            <label>
+              Save character / ped
+              <select id="statusCharacterSelect" disabled>
+                <option value="">Load a save first</option>
+              </select>
+            </label>
+            <label>
+              Status preset
+              <select id="statusPresetSelect" disabled>
+                <option value="">Type your own status</option>
+              </select>
+            </label>
+            <label>
+              Status ID
+              <input id="statusIdInput" type="text" list="statusPresetList" placeholder="HASTE" disabled>
+              <datalist id="statusPresetList"></datalist>
+            </label>
+            <label>
+              Target
+              <select id="statusTargetSelect" disabled>
+                <option value="character">Selected save character / ped</option>
+                <option value="current">Current controlled character</option>
+                <option value="host">Host character</option>
+                <option value="uuid">Specific character/item UUID</option>
+                <option value="party">All party members</option>
+                <option value="nearby">Nearby loaded creatures/NPCs</option>
+                <option value="enemies">Enemies within radius</option>
+                <option value="slot">Equipped item slot</option>
+                <option value="allSlots">All equipped item slots</option>
+              </select>
+            </label>
+            <label>
+              UUID / item UUID
+              <input id="statusUuidInput" type="text" placeholder="Only needed for specific UUID" disabled>
+            </label>
+            <label>
+              Radius meters
+              <input id="statusRadiusInput" type="number" min="0" step="1" value="20" disabled>
+            </label>
+            <label>
+              Duration
+              <input id="statusDurationInput" type="number" step="1" value="-1" disabled>
+            </label>
+            <label>
+              Force
+              <input id="statusForceInput" type="number" min="0" step="1" value="100" disabled>
+            </label>
+            <label>
+              Item slot
+              <select id="statusSlotSelect" disabled>
+                <option value="Melee Main Weapon">Melee Main Weapon</option>
+                <option value="Melee Offhand Weapon">Melee Offhand Weapon</option>
+                <option value="Ranged Main Weapon">Ranged Main Weapon</option>
+                <option value="Ranged Offhand Weapon">Ranged Offhand Weapon</option>
+                <option value="Breast">Armour / Chest</option>
+                <option value="Cloak">Cape / Cloak</option>
+                <option value="Boots">Boots</option>
+                <option value="Gloves">Gloves</option>
+                <option value="Helmet">Helmet</option>
+                <option value="Ring">Ring 1</option>
+                <option value="Ring2">Ring 2</option>
+                <option value="Amulet">Amulet</option>
+                <option value="Underwear">Underwear</option>
+                <option value="VanityBody">Camp clothing</option>
+                <option value="VanityBoots">Camp shoes</option>
+                <option value="MusicalInstrument">Instrument</option>
+              </select>
+            </label>
+            <button id="statusApplyBtn" type="button" disabled>Build Apply Command</button>
+            <button id="statusRemoveBtn" type="button" disabled>Build Remove Command</button>
+          </div>
+          <div id="statusCurrentList" class="status-list">No save character selected.</div>
+          <textarea id="statusCommandText" class="small-code" spellcheck="false" readonly></textarea>
+          <p class="hint">These commands run in the BG3 Script Extender console. They do not edit the packed save directly.</p>
+        </section>
+
+        <section class="advanced">
+          <h3>Character / Ped Editor</h3>
+          <div class="tool-grid">
+            <label>
+              Action
+              <select id="characterActionSelect" disabled>
+                <option value="log">Log name, model, UUID, position</option>
+                <option value="teleportToHost">Teleport selected to host</option>
+                <option value="bringHost">Teleport host to selected</option>
+                <option value="revive">Revive and heal selected</option>
+                <option value="heal">Heal selected to full</option>
+                <option value="knockout">Knock out selected</option>
+                <option value="kill">Kill selected</option>
+              </select>
+            </label>
+            <label>
+              Selected UUID
+              <input id="characterUuidInput" type="text" readonly disabled>
+            </label>
+            <button id="characterCommandBtn" type="button" disabled>Build Character Command</button>
+          </div>
+          <textarea id="characterCommandText" class="small-code" spellcheck="false" readonly></textarea>
+          <p class="hint">This uses the selected save character's UUID when the save contains one. Some saved NPC records only have entity/template IDs and need an in-game logger to target safely.</p>
+        </section>
+
+        <section class="advanced">
+          <h3>Party Stats Editor</h3>
+          <div class="tool-grid">
+            <label>
+              Target party member
+              <select id="partyStatTargetSelect" disabled>
+                <option value="current">Current controlled character</option>
+              </select>
+            </label>
+            <label>
+              Manual UUID
+              <input id="partyStatUuidInput" type="text" placeholder="Only used by manual UUID target" disabled>
+            </label>
+            <label>
+              Ability mode
+              <select id="partyStatModeSelect" disabled>
+                <option value="minimum">Set minimum score</option>
+                <option value="bonus">Add flat bonus</option>
+              </select>
+            </label>
+            <label>
+              Strength
+              <input id="statStrengthInput" type="number" min="-50" max="60" step="1" placeholder="blank = unchanged" disabled>
+            </label>
+            <label>
+              Dexterity
+              <input id="statDexterityInput" type="number" min="-50" max="60" step="1" placeholder="blank = unchanged" disabled>
+            </label>
+            <label>
+              Constitution
+              <input id="statConstitutionInput" type="number" min="-50" max="60" step="1" placeholder="blank = unchanged" disabled>
+            </label>
+            <label>
+              Intelligence
+              <input id="statIntelligenceInput" type="number" min="-50" max="60" step="1" placeholder="blank = unchanged" disabled>
+            </label>
+            <label>
+              Wisdom
+              <input id="statWisdomInput" type="number" min="-50" max="60" step="1" placeholder="blank = unchanged" disabled>
+            </label>
+            <label>
+              Charisma
+              <input id="statCharismaInput" type="number" min="-50" max="60" step="1" placeholder="blank = unchanged" disabled>
+            </label>
+            <label>
+              AC bonus
+              <input id="statAcInput" type="number" min="-50" max="50" step="1" placeholder="blank = unchanged" disabled>
+            </label>
+            <label>
+              Max HP bonus
+              <input id="statHpInput" type="number" min="-500" max="500" step="1" placeholder="blank = unchanged" disabled>
+            </label>
+            <label>
+              Movement bonus
+              <input id="statMovementInput" type="number" min="-30" max="30" step="1" placeholder="meters, blank = unchanged" disabled>
+            </label>
+            <label>
+              Initiative bonus
+              <input id="statInitiativeInput" type="number" min="-50" max="50" step="1" placeholder="blank = unchanged" disabled>
+            </label>
+            <button id="partyStatsApplyBtn" type="button" disabled>Build Apply Stats Command</button>
+            <button id="partyStatsRemoveBtn" type="button" disabled>Build Remove Stats Command</button>
+          </div>
+          <div id="partyStatCurrentList" class="status-list">No party save summary selected.</div>
+          <textarea id="partyStatsCommandText" class="small-code tall-code" spellcheck="false" readonly></textarea>
+          <p class="hint">Set minimum score raises an ability to at least that value. Add flat bonus adds or subtracts a boost. Apply first removes likely old custom stat boosts from this tool, then adds the current fields.</p>
+        </section>
+
+        <section class="advanced">
+          <h3>Tav Adder</h3>
+          <div class="tool-grid">
+            <label>
+              Mode
+              <select id="tavModeSelect" disabled>
+                <option value="creator">Open character creator and auto-repair new Tav</option>
+                <option value="repair">Repair existing created Tav UUID as player</option>
+              </select>
+            </label>
+            <label>
+              Existing Tav UUID
+              <input id="tavUuidInput" type="text" placeholder="Only needed for repair mode" disabled>
+            </label>
+            <button id="tavCommandBtn" type="button" disabled>Build Tav Command</button>
+          </div>
+          <textarea id="tavCommandText" class="small-code tall-code" spellcheck="false" readonly></textarea>
+          <p class="hint">Real character-creator Tavs are safer than spawned NPC fake Tavs. Make a manual save before using this.</p>
+        </section>
+
+        <section class="tabs">
+          <button class="tab active" type="button" data-tab="overview">Overview</button>
+          <button class="tab" type="button" data-tab="saveinfo">SaveInfo.json</button>
+          <button class="tab" type="button" data-tab="meta">meta.lsx</button>
+          <button class="tab" type="button" data-tab="globals">Globals.lsx</button>
+        </section>
+
+        <section class="panel active" id="overviewPanel">
+          <div class="grid">
+            <div>
+              <h3>Party</h3>
+              <div id="party" class="cards"></div>
+            </div>
+            <div>
+              <h3>Modules</h3>
+              <div id="mods" class="module-list"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel" id="saveinfoPanel">
+          <div class="editorbar">
+            <button type="button" data-load-text="SaveInfo.json" disabled>Load</button>
+            <button type="button" data-save-text="SaveInfo.json" disabled>Save To Work Copy</button>
+          </div>
+          <textarea id="saveinfoText" spellcheck="false"></textarea>
+        </section>
+
+        <section class="panel" id="metaPanel">
+          <div class="editorbar">
+            <button type="button" data-load-text="meta.lsx" disabled>Load</button>
+            <button type="button" data-save-text="meta.lsx" disabled>Save To Work Copy</button>
+          </div>
+          <textarea id="metaText" spellcheck="false"></textarea>
+        </section>
+
+        <section class="panel" id="globalsPanel">
+          <div class="editorbar">
+            <button type="button" data-load-text="Globals.lsx" disabled>Load Read Only</button>
+          </div>
+          <textarea id="globalsText" spellcheck="false" readonly></textarea>
+        </section>
+
+        <pre id="log" class="log"></pre>
       </section>
     </main>
+
+    <script src="app.js"></script>
   </body>
 </html>
