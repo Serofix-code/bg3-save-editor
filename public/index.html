@@ -237,6 +237,73 @@
         </section>
 
         <section class="advanced">
+          <h3>Party Stats Editor</h3>
+          <div class="tool-grid">
+            <label>
+              Target party member
+              <select id="partyStatTargetSelect" disabled>
+                <option value="current">Current controlled character</option>
+              </select>
+            </label>
+            <label>
+              Manual UUID
+              <input id="partyStatUuidInput" type="text" placeholder="Only used by manual UUID target" disabled>
+            </label>
+            <label>
+              Ability mode
+              <select id="partyStatModeSelect" disabled>
+                <option value="minimum">Set minimum score</option>
+                <option value="bonus">Add flat bonus</option>
+              </select>
+            </label>
+            <label>
+              Strength
+              <input id="statStrengthInput" type="number" min="-50" max="60" step="1" placeholder="blank = unchanged" disabled>
+            </label>
+            <label>
+              Dexterity
+              <input id="statDexterityInput" type="number" min="-50" max="60" step="1" placeholder="blank = unchanged" disabled>
+            </label>
+            <label>
+              Constitution
+              <input id="statConstitutionInput" type="number" min="-50" max="60" step="1" placeholder="blank = unchanged" disabled>
+            </label>
+            <label>
+              Intelligence
+              <input id="statIntelligenceInput" type="number" min="-50" max="60" step="1" placeholder="blank = unchanged" disabled>
+            </label>
+            <label>
+              Wisdom
+              <input id="statWisdomInput" type="number" min="-50" max="60" step="1" placeholder="blank = unchanged" disabled>
+            </label>
+            <label>
+              Charisma
+              <input id="statCharismaInput" type="number" min="-50" max="60" step="1" placeholder="blank = unchanged" disabled>
+            </label>
+            <label>
+              AC bonus
+              <input id="statAcInput" type="number" min="-50" max="50" step="1" placeholder="blank = unchanged" disabled>
+            </label>
+            <label>
+              Max HP bonus
+              <input id="statHpInput" type="number" min="-500" max="500" step="1" placeholder="blank = unchanged" disabled>
+            </label>
+            <label>
+              Movement bonus
+              <input id="statMovementInput" type="number" min="-30" max="30" step="1" placeholder="meters, blank = unchanged" disabled>
+            </label>
+            <label>
+              Initiative bonus
+              <input id="statInitiativeInput" type="number" min="-50" max="50" step="1" placeholder="blank = unchanged" disabled>
+            </label>
+            <button id="partyStatsApplyBtn" type="button" disabled>Build Apply Stats Command</button>
+            <button id="partyStatsRemoveBtn" type="button" disabled>Build Remove Stats Command</button>
+          </div>
+          <textarea id="partyStatsCommandText" class="small-code tall-code" spellcheck="false" readonly></textarea>
+          <p class="hint">Set minimum score raises an ability to at least that value. Add flat bonus adds or subtracts a boost. Apply first removes likely old custom stat boosts from this tool, then adds the current fields.</p>
+        </section>
+
+        <section class="advanced">
           <h3>Tav Adder</h3>
           <div class="tool-grid">
             <label>

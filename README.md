@@ -48,6 +48,7 @@ http://localhost:8081
 - Loads premade status IDs from the local BG3 `Data\Editor\Mods\...\StatusData` files when available.
 - Builds Script Extender commands to apply or remove statuses from a selected saved character/ped, a specific UUID, party members, nearby creatures/NPCs, enemies, or equipped item slots.
 - Includes a small character/ped command builder for logging, teleporting, reviving, healing, knocking out, or killing a selected UUID.
+- Builds party-member stat commands for ability scores, AC, max HP, movement, and initiative.
 - Includes a Tav command builder that opens the in-game character creator and repairs/logs the created Tav through Script Extender. It does not inject a full Tav directly into a save file.
 
 ## Important Safety Notes

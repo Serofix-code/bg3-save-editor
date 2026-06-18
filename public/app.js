@@ -61,6 +61,22 @@ const els = {
   characterUuid: $("#characterUuidInput"),
   characterCommand: $("#characterCommandBtn"),
   characterCommandText: $("#characterCommandText"),
+  partyStatTarget: $("#partyStatTargetSelect"),
+  partyStatUuid: $("#partyStatUuidInput"),
+  partyStatMode: $("#partyStatModeSelect"),
+  statStrength: $("#statStrengthInput"),
+  statDexterity: $("#statDexterityInput"),
+  statConstitution: $("#statConstitutionInput"),
+  statIntelligence: $("#statIntelligenceInput"),
+  statWisdom: $("#statWisdomInput"),
+  statCharisma: $("#statCharismaInput"),
+  statAc: $("#statAcInput"),
+  statHp: $("#statHpInput"),
+  statMovement: $("#statMovementInput"),
+  statInitiative: $("#statInitiativeInput"),
+  partyStatsApply: $("#partyStatsApplyBtn"),
+  partyStatsRemove: $("#partyStatsRemoveBtn"),
+  partyStatsCommandText: $("#partyStatsCommandText"),
   tavMode: $("#tavModeSelect"),
   tavUuid: $("#tavUuidInput"),
   tavCommand: $("#tavCommandBtn"),
@@ -183,6 +199,21 @@ function setControls(enabled) {
     els.statusRemove,
     els.characterAction,
     els.characterCommand,
+    els.partyStatTarget,
+    els.partyStatUuid,
+    els.partyStatMode,
+    els.statStrength,
+    els.statDexterity,
+    els.statConstitution,
+    els.statIntelligence,
+    els.statWisdom,
+    els.statCharisma,
+    els.statAc,
+    els.statHp,
+    els.statMovement,
+    els.statInitiative,
+    els.partyStatsApply,
+    els.partyStatsRemove,
     els.tavMode,
     els.tavUuid,
     els.tavCommand,
@@ -251,7 +282,22 @@ function setBrowserOnlyMode(error) {
     els.statusForce,
     els.statusSlot,
     els.statusApply,
-    els.statusRemove
+    els.statusRemove,
+    els.partyStatTarget,
+    els.partyStatUuid,
+    els.partyStatMode,
+    els.statStrength,
+    els.statDexterity,
+    els.statConstitution,
+    els.statIntelligence,
+    els.statWisdom,
+    els.statCharisma,
+    els.statAc,
+    els.statHp,
+    els.statMovement,
+    els.statInitiative,
+    els.partyStatsApply,
+    els.partyStatsRemove
   ]) {
     item.disabled = false;
   }
@@ -389,6 +435,32 @@ function renderStatusLibrary(statuses) {
   }
 }
 
+function renderPartyStatTargets(characters) {
+  const current = els.partyStatTarget.value;
+  els.partyStatTarget.innerHTML = "";
+  const base = [
+    ["current", "Current controlled character"],
+    ["host", "Host character"],
+    ["allParty", "All active party members"],
+    ["uuid", "Manual UUID"]
+  ];
+  for (const [value, label] of base) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    els.partyStatTarget.append(option);
+  }
+  (characters || []).forEach((char, index) => {
+    const option = document.createElement("option");
+    option.value = `partyIndex:${index + 1}`;
+    option.textContent = `Party slot ${index + 1} - ${leaderLabel(char, index)}`;
+    els.partyStatTarget.append(option);
+  });
+  if ([...els.partyStatTarget.options].some((option) => option.value === current)) {
+    els.partyStatTarget.value = current;
+  }
+}
+
 function renderDetails() {
   const details = state.details;
   const info = details?.saveInfo;
@@ -427,11 +499,13 @@ function renderDetails() {
   els.goldCommandText.value = "";
   els.statusCommandText.value = "";
   els.characterCommandText.value = "";
+  els.partyStatsCommandText.value = "";
   els.tavCommandText.value = "";
 
   const characters = partyCharacters();
   renderLevelOptions(details?.levels || state.config?.knownLevels || []);
   renderLeaderOptions(characters, meta?.leaderName || "");
+  renderPartyStatTargets(characters);
   renderSaveCharacters();
   renderParty(characters);
   renderMods(meta?.mods || []);
@@ -676,6 +750,80 @@ function buildCharacterCommand() {
   log("Character command built.");
 }
 
+function statNumber(input, label, min, max) {
+  const raw = input.value.trim();
+  if (!raw) return null;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || Math.trunc(value) !== value || value < min || value > max) {
+    throw new Error(`${label} must be a whole number from ${min} to ${max}.`);
+  }
+  return value;
+}
+
+function buildPartyStatsCommand(action) {
+  let targetMode = els.partyStatTarget.value || "current";
+  let partyIndex = 0;
+  if (targetMode.startsWith("partyIndex:")) {
+    partyIndex = Number(targetMode.split(":")[1]);
+    targetMode = "partyIndex";
+  }
+  const manualUuid = els.partyStatUuid.value.trim();
+  if (targetMode === "uuid" && !manualUuid) {
+    log("Paste a character UUID for manual UUID target first.");
+    return;
+  }
+
+  const mode = els.partyStatMode.value;
+  const abilityInputs = [
+    ["Strength", els.statStrength],
+    ["Dexterity", els.statDexterity],
+    ["Constitution", els.statConstitution],
+    ["Intelligence", els.statIntelligence],
+    ["Wisdom", els.statWisdom],
+    ["Charisma", els.statCharisma]
+  ];
+  const boosts = [];
+  const cleanAbilities = [];
+
+  try {
+    for (const [ability, input] of abilityInputs) {
+      const value = statNumber(input, ability, mode === "minimum" ? 1 : -50, mode === "minimum" ? 60 : 50);
+      if (value === null) continue;
+      cleanAbilities.push(ability);
+      if (mode === "minimum") {
+        boosts.push(`AbilityOverrideMinimum(${ability},${value},true)`);
+      } else if (value !== 0) {
+        boosts.push(`Ability(${ability},${value})`);
+      }
+    }
+
+    const ac = statNumber(els.statAc, "AC bonus", -50, 50);
+    const hp = statNumber(els.statHp, "Max HP bonus", -500, 500);
+    const movement = statNumber(els.statMovement, "Movement bonus", -30, 30);
+    const initiative = statNumber(els.statInitiative, "Initiative bonus", -50, 50);
+    if (ac !== null && ac !== 0) boosts.push(`AC(${ac})`);
+    if (hp !== null && hp !== 0) boosts.push(`IncreaseMaxHP(${hp})`);
+    if (movement !== null && movement !== 0) boosts.push(`MovementSpeed(${movement})`);
+    if (initiative !== null && initiative !== 0) boosts.push(`Initiative(${initiative})`);
+
+    const cleanAc = ac !== null;
+    const cleanHp = hp !== null;
+    const cleanMovement = movement !== null;
+    const cleanInitiative = initiative !== null;
+    const cleanAll = action === "remove" && !cleanAbilities.length && !cleanAc && !cleanHp && !cleanMovement && !cleanInitiative;
+    if (action === "apply" && !boosts.length) {
+      log("Enter at least one stat value before building an apply command.");
+      return;
+    }
+
+    const command = `do local action=${luaString(action)}; local targetMode=${luaString(targetMode)}; local partyIndex=${partyIndex || 0}; local manualUuid=${luaString(manualUuid)}; local boosts={${boosts.map(luaString).join(",")}}; local cleanAbilities={${(cleanAll ? abilityInputs.map(([a]) => a) : cleanAbilities).map(luaString).join(",")}}; local cleanAc=${cleanAll || cleanAc ? "true" : "false"}; local cleanHp=${cleanAll || cleanHp ? "true" : "false"}; local cleanMovement=${cleanAll || cleanMovement ? "true" : "false"}; local cleanInitiative=${cleanAll || cleanInitiative ? "true" : "false"}; local function txt(v) local ok,s=pcall(tostring,v); if ok then return s end; return "" end; local function current() local host=Osi.GetHostCharacter(); local user=host and Osi.GetReservedUserID(host); local cur=(user and user~=-65536 and Osi.GetCurrentCharacter(user)) or nil; return cur or host end; local function resolve(h) if h==nil then return nil end; if Osi.ResolveTranslatedString then local ok,n=pcall(Osi.ResolveTranslatedString,h); if ok and n then return txt(n) end end; if Ext and Ext.Loca and Ext.Loca.GetTranslatedString then local ok,n=pcall(Ext.Loca.GetTranslatedString,h,txt(h)); if ok and n then return txt(n) end end; return txt(h) end; local function nameOf(id) local ok,h=pcall(Osi.GetDisplayName,id); if ok and h then return resolve(h) or txt(h) end; return txt(id) end; local function partyList() local out={}; local ok,rows=pcall(function() return Osi.DB_PartyMembers:Get(nil) end); if ok and rows then for _,r in ipairs(rows) do out[#out+1]=r[1] end; if #out==0 then for _,r in pairs(rows) do out[#out+1]=r[1] end end end; return out end; local function selectedTargets() if targetMode=="current" then return {current()} elseif targetMode=="host" then return {Osi.GetHostCharacter()} elseif targetMode=="uuid" then return {manualUuid} elseif targetMode=="allParty" then return partyList() elseif targetMode=="partyIndex" then local p=partyList(); if not p[partyIndex] then _P("Party slot "..txt(partyIndex).." was not found. Current DB_PartyMembers:"); for i,id in ipairs(p) do _P(txt(i)..": "..nameOf(id).." | "..txt(id)) end; return {} end; return {p[partyIndex]} end; return {} end; local function rem(target,boost) pcall(Osi.RemoveBoosts,target,boost,0,"",target) end; local function cleanup(target) for _,a in ipairs(cleanAbilities) do for v=1,60 do rem(target,"AbilityOverrideMinimum("..a..","..txt(v)..",true)"); rem(target,"AbilityOverrideMinimum("..a..","..txt(v)..")") end; for v=1,50 do rem(target,"Ability("..a..","..txt(v)..")"); rem(target,"Ability("..a..",-"..txt(v)..")") end end; if cleanAc then for v=-50,50 do rem(target,"AC("..txt(v)..")") end end; if cleanHp then for v=-500,500 do rem(target,"IncreaseMaxHP("..txt(v)..")") end end; if cleanMovement then for v=-30,30 do rem(target,"MovementSpeed("..txt(v)..")") end end; if cleanInitiative then for v=-50,50 do rem(target,"Initiative("..txt(v)..")") end end end; local targets=selectedTargets(); local changed=0; for _,target in ipairs(targets) do if target and txt(target)~="" then cleanup(target); if action=="apply" then local joined=table.concat(boosts,";"); if joined~="" then local ok,err=pcall(Osi.AddBoosts,target,joined,"",target); if ok then changed=changed+1; _P("Applied stat boosts to "..nameOf(target).." | "..txt(target).." | "..joined) else _P("FAILED stat boosts for "..nameOf(target).." | "..txt(target).." | "..txt(err)) end end else changed=changed+1; _P("Removed matching custom stat boosts from "..nameOf(target).." | "..txt(target)) end end end; _P("Party Stats Editor done. Action="..action.." targets="..txt(changed)..".") end`;
+    els.partyStatsCommandText.value = command;
+    log(`Party stats ${action} command built.`);
+  } catch (error) {
+    log(error.message);
+  }
+}
+
 async function buildTavCommand() {
   if (!state.selected) return;
   setStatus("Building command");
@@ -768,6 +916,8 @@ els.statusPreset.addEventListener("change", () => {
   if (els.statusPreset.value) els.statusId.value = els.statusPreset.value;
 });
 els.characterCommand.addEventListener("click", buildCharacterCommand);
+els.partyStatsApply.addEventListener("click", () => buildPartyStatsCommand("apply"));
+els.partyStatsRemove.addEventListener("click", () => buildPartyStatsCommand("remove"));
 els.tavCommand.addEventListener("click", () => buildTavCommand().catch((error) => {
   setStatus("Error");
   log(error.message);
