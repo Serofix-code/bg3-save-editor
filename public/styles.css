@@ -223,11 +223,16 @@ select:disabled {
 
 .path-grid,
 .upload-grid,
-.gold-grid {
+.gold-grid,
+.tool-grid {
   display: grid;
   grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr) auto;
   gap: 9px;
   align-items: end;
+}
+
+.tool-grid {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
 .upload-grid {
@@ -289,7 +294,7 @@ select:disabled {
 
 .quick {
   display: grid;
-  grid-template-columns: repeat(6, minmax(150px, 1fr)) auto;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   align-items: end;
 }
 
@@ -310,10 +315,27 @@ select:disabled {
   resize: vertical;
 }
 
+.tall-code {
+  min-height: 150px;
+}
+
 .hint {
   margin: 8px 0 0;
   color: var(--muted);
   font-size: 13px;
+}
+
+.status-list {
+  max-height: 170px;
+  overflow: auto;
+  margin-top: 10px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+  background: #111216;
+  font: 12px/1.45 Consolas, "Cascadia Mono", "Courier New", monospace;
+  white-space: pre-wrap;
 }
 
 .tabs {
@@ -422,7 +444,8 @@ textarea {
 
   .path-grid,
   .upload-grid,
-  .gold-grid {
+  .gold-grid,
+  .tool-grid {
     grid-template-columns: 1fr;
   }
 }

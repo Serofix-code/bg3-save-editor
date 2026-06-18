@@ -16,6 +16,8 @@ const BACKUP_ROOT = path.join(__dirname, "backups");
 const GLOBALS_EDIT_MARKER = ".globalsEdited";
 
 const GOLD_TEMPLATE = "1c3c9c74-34a1-4685-989e-410dc080be6f";
+const SCRIPT_COMMANDS_ROOT = path.join(os.homedir(), "Desktop", "bg3 script extender commands");
+let STATUS_LIBRARY_CACHE = null;
 
 const KNOWN_LEVELS = [
   ["WLD_Main_A", "Act 1 - Wilderness, Underdark, Mountain Pass, Rosymorn"],
@@ -187,6 +189,229 @@ function xmlValue(value) {
     .replaceAll('"', "&quot;");
 }
 
+function xmlAttrValue(value) {
+  return String(value ?? "")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&apos;", "'")
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&amp;", "&");
+}
+
+function readAttr(block, id) {
+  const re = new RegExp(`<attribute id="${id}"[^>]*value="([^"]*)"`, "i");
+  const match = String(block || "").match(re);
+  return match ? xmlAttrValue(match[1]) : "";
+}
+
+function readField(block, name) {
+  const re = new RegExp(`<field name="${name}"[^>]*value="([^"]*)"`, "i");
+  const match = String(block || "").match(re);
+  return match ? xmlAttrValue(match[1]) : "";
+}
+
+function readFieldHandle(block, name) {
+  const re = new RegExp(`<field name="${name}"[^>]*handle="([^"]*)"`, "i");
+  const match = String(block || "").match(re);
+  return match ? xmlAttrValue(match[1]) : "";
+}
+
+function nodeBlockAt(text, startIndex) {
+  const source = String(text || "");
+  const start = source.indexOf("<node", startIndex);
+  if (start < 0) return "";
+  const startEnd = source.indexOf(">", start);
+  if (startEnd < 0) return "";
+  const startTag = source.slice(start, startEnd + 1);
+  if (/\/>\s*$/.test(startTag)) return startTag;
+
+  let depth = 1;
+  const token = /<node\b[^>]*\/>|<node\b[^>]*>|<\/node>/g;
+  token.lastIndex = startEnd + 1;
+  let match;
+  while ((match = token.exec(source))) {
+    const value = match[0];
+    if (value.startsWith("</node")) {
+      depth -= 1;
+      if (depth === 0) return source.slice(start, token.lastIndex);
+    } else if (!/\/>\s*$/.test(value)) {
+      depth += 1;
+    }
+  }
+  return "";
+}
+
+function findNodeBlock(text, id, fromIndex = 0) {
+  const source = String(text || "");
+  const marker = `<node id="${id}"`;
+  const index = source.indexOf(marker, fromIndex);
+  return index >= 0 ? nodeBlockAt(source, index) : "";
+}
+
+function directChildNodeBlocks(block, id) {
+  const source = String(block || "");
+  const childrenIndex = source.indexOf("<children>");
+  if (childrenIndex < 0) return [];
+  const wanted = `<node id="${id}"`;
+  const rows = [];
+  let depth = 0;
+  const token = /<node\b[^>]*\/>|<node\b[^>]*>|<\/node>/g;
+  token.lastIndex = childrenIndex + "<children>".length;
+  let match;
+  while ((match = token.exec(source))) {
+    const value = match[0];
+    if (value.startsWith("</node")) {
+      if (depth > 0) depth -= 1;
+      continue;
+    }
+    if (depth === 0 && value.startsWith(wanted)) {
+      if (/\/>\s*$/.test(value)) {
+        rows.push(value);
+      } else {
+        const child = nodeBlockAt(source, match.index);
+        if (child) {
+          rows.push(child);
+          token.lastIndex = match.index + child.length;
+        }
+      }
+      continue;
+    }
+    if (!/\/>\s*$/.test(value)) depth += 1;
+  }
+  return rows;
+}
+
+function detectBg3InstallRoots() {
+  const candidates = [];
+  if (process.env.BG3_INSTALL) candidates.push(process.env.BG3_INSTALL);
+  candidates.push("C:\\Program Files (x86)\\Steam\\steamapps\\common\\Baldurs Gate 3");
+  candidates.push("C:\\Program Files\\Steam\\steamapps\\common\\Baldurs Gate 3");
+  candidates.push(path.join(os.homedir(), "Steam", "steamapps", "common", "Baldurs Gate 3"));
+  return uniquePaths(candidates).filter(pathExistsSync);
+}
+
+function walkFilesSync(root, predicate, limit = 50000) {
+  const out = [];
+  const stack = [root];
+  while (stack.length && out.length < limit) {
+    const current = stack.pop();
+    for (const entry of readDirSync(current)) {
+      const full = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(full);
+      } else if (entry.isFile() && predicate(full, entry.name)) {
+        out.push(full);
+        if (out.length >= limit) break;
+      }
+    }
+  }
+  return out;
+}
+
+function readStatusLibrary() {
+  if (STATUS_LIBRARY_CACHE) return STATUS_LIBRARY_CACHE;
+  const roots = detectBg3InstallRoots();
+  const byName = new Map();
+  for (const root of roots) {
+    const statusRoot = path.join(root, "Data", "Editor", "Mods");
+    if (!pathExistsSync(statusRoot)) continue;
+    const files = walkFilesSync(
+      statusRoot,
+      (full, name) => /^Status_.*\.stats$/i.test(name) && full.toLowerCase().includes(`${path.sep.toLowerCase()}statusdata${path.sep.toLowerCase()}`),
+      30000
+    );
+    for (const file of files) {
+      let text = "";
+      try {
+        text = fss.readFileSync(file, "utf8");
+      } catch {
+        continue;
+      }
+      const modMatch = file.match(/Data[\\\/]Editor[\\\/]Mods[\\\/]([^\\\/]+)/i);
+      const mod = modMatch ? modMatch[1] : "unknown";
+      for (const match of text.matchAll(/<stat_object\b[\s\S]*?<\/stat_object>/g)) {
+        const block = match[0];
+        const name = readField(block, "Name");
+        if (!name || byName.has(name)) continue;
+        byName.set(name, {
+          name,
+          uuid: readField(block, "UUID"),
+          displayHandle: readFieldHandle(block, "DisplayName"),
+          icon: readField(block, "Icon"),
+          source: mod,
+          file: path.relative(root, file).replaceAll("\\", "/")
+        });
+      }
+    }
+  }
+  STATUS_LIBRARY_CACHE = {
+    roots,
+    statuses: [...byName.values()].sort((a, b) => a.name.localeCompare(b.name))
+  };
+  return STATUS_LIBRARY_CACHE;
+}
+
+function modelHintsFor(text, uuids) {
+  const wanted = new Set((uuids || []).filter(Boolean));
+  const hints = new Map();
+  if (!wanted.size) return hints;
+  const re = /value="([A-Za-z0-9_]+)_([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})"/g;
+  let match;
+  while ((match = re.exec(text))) {
+    const uuid = match[2].toLowerCase();
+    if (!wanted.has(uuid)) continue;
+    const model = match[1];
+    if (!hints.has(uuid) || model.length > hints.get(uuid).length) hints.set(uuid, model);
+  }
+  return hints;
+}
+
+function parseSaveCharacters(globalsText) {
+  const factory = findNodeBlock(globalsText, "CharacterFactory");
+  if (!factory) return [];
+  const creatorsBlock = findNodeBlock(factory, "Creators");
+  const charactersBlock = findNodeBlock(factory, "Characters");
+  const creators = directChildNodeBlocks(creatorsBlock, "Creator").map((block, index) => ({
+    index,
+    entity: readAttr(block, "Entity"),
+    templateType: readAttr(block, "TemplateType"),
+    templateId: readAttr(block, "TemplateID"),
+    uuid: readAttr(block, "UUID")
+  }));
+  const characterBlocks = directChildNodeBlocks(charactersBlock, "Character");
+  const uuidHints = modelHintsFor(globalsText, creators.map((row) => row.uuid && row.uuid.toLowerCase()));
+
+  return characterBlocks.map((block, index) => {
+    const creator = creators[index] || {};
+    const statusManager = findNodeBlock(block, "StatusManager");
+    const statuses = directChildNodeBlocks(statusManager, "STATUS").map((statusBlock) => ({
+      id: readAttr(statusBlock, "ID"),
+      lifetime: readAttr(statusBlock, "LifeTime"),
+      currentLifetime: readAttr(statusBlock, "CurrentLifeTime"),
+      causeGuid: readAttr(statusBlock, "CauseGUID"),
+      started: readAttr(statusBlock, "Started")
+    })).filter((status) => status.id);
+    const uuid = creator.uuid || "";
+    const uuidKey = uuid.toLowerCase();
+    const currentTemplate = readAttr(block, "CurrentTemplate");
+    return {
+      index: index + 1,
+      uuid,
+      entity: creator.entity || "",
+      templateId: creator.templateId || "",
+      templateType: creator.templateType || readAttr(block, "CurrentTemplateType"),
+      currentTemplate,
+      model: uuidHints.get(uuidKey) || "",
+      level: readAttr(block, "Level"),
+      position: readAttr(block, "Translate"),
+      global: readAttr(block, "Global"),
+      hasOsirisDialog: readAttr(block, "HasOsirisDialog"),
+      statusCount: statuses.length,
+      statuses
+    };
+  });
+}
+
 function stamp() {
   const d = new Date();
   const pad = (n) => String(n).padStart(2, "0");
@@ -355,6 +580,7 @@ function parseMetaSummary(metaText) {
     levelRaw: readAttr("Level"),
     subRegion: readAttr("CurrentSubRegion"),
     leaderName: readAttr("LeaderName"),
+    timeStamp: readAttr("TimeStamp"),
     saveGameType: readAttr("SaveGameType"),
     saveGameId: readAttr("SaveGameID"),
     saveTime: readAttr("SaveTime"),
@@ -422,6 +648,64 @@ async function details(res, body) {
   });
 }
 
+async function statusLibrary(res) {
+  const library = readStatusLibrary();
+  json(res, 200, {
+    roots: library.roots,
+    count: library.statuses.length,
+    statuses: library.statuses
+  });
+}
+
+async function saveCharacters(res, body) {
+  const { source, folder } = saveFolderFromRequest(body.folder, body.source);
+  let work = workFolderFor(source, folder);
+  if (!(await exists(work))) {
+    ({ work } = await extractSave(source, folder));
+  }
+  const globalsPath = path.join(work, "Globals.lsx");
+  if (!(await exists(globalsPath))) throw new Error("Globals.lsx was not found. Extract the save first.");
+  const globalsText = await fs.readFile(globalsPath, "utf8");
+  const characters = parseSaveCharacters(globalsText);
+  json(res, 200, {
+    source,
+    folder,
+    count: characters.length,
+    characters
+  });
+}
+
+function extractCommandSection(text, commandNumber) {
+  const start = text.indexOf(`COMMAND ${commandNumber}`);
+  if (start < 0) return "";
+  const commandLine = text.indexOf("\ndo ", start);
+  if (commandLine < 0) return "";
+  const commandStart = commandLine + 1;
+  const next = text.indexOf(`\n\nCOMMAND ${commandNumber + 1}`, commandStart);
+  return text.slice(commandStart, next >= 0 ? next : text.length).trim();
+}
+
+async function tavCommand(res, body) {
+  const mode = String(body.mode || "creator");
+  const uuid = String(body.uuid || "").trim();
+  const sourceFile = path.join(SCRIPT_COMMANDS_ROOT, "Spesific commands", "Create a player tav.txt");
+  let text = "";
+  if (await exists(sourceFile)) text = await fs.readFile(sourceFile, "utf8");
+  let command = "";
+  if (mode === "repair") {
+    if (!uuid) throw new Error("Enter the existing created Tav UUID for repair mode.");
+    command = extractCommandSection(text, 3).replaceAll("CHARACTER_UUID_HERE", uuid);
+  } else {
+    command = extractCommandSection(text, 1);
+  }
+  if (!command) {
+    command = mode === "repair"
+      ? `do local target="${xmlValue(uuid)}"; local host=Osi.GetHostCharacter(); if target=="" then _P("Enter a Tav UUID first.") else pcall(Osi.MakePlayer,target,host,1); pcall(function() Osi.DB_Players(target) end); pcall(function() Osi.DB_Avatars(target) end); pcall(Osi.TeleportTo,target,host,"",0,0,0,0,1); _P("Tried to repair Tav "..target) end end`
+      : `do _P("Opening character creator. Make a manual save first."); Osi.StartCharacterCreation() end`;
+  }
+  json(res, 200, { command, sourceFile: await exists(sourceFile) ? sourceFile : "" });
+}
+
 async function getText(res, body) {
   const { source, folder } = saveFolderFromRequest(body.folder, body.source);
   const file = String(body.file || "");
@@ -480,6 +764,14 @@ async function applyQuickEdit(res, body) {
       meta = meta
         .replace(/(<attribute id="LevelUniqueKey"[^>]*value=")[^"]*(")/, `$1${level}$2`)
         .replace(/(<attribute id="Level"[^>]*value=")[^"]*(")/, `$1${level}$2`);
+    }
+    if (body.playedHours !== undefined && body.playedHours !== "") {
+      const playedHours = Number(body.playedHours);
+      if (!Number.isFinite(playedHours) || playedHours < 0 || playedHours > 1000000) {
+        throw new Error("Displayed playtime hours must be a number between 0 and 1000000.");
+      }
+      const seconds = Math.round(playedHours * 3600);
+      meta = meta.replace(/(<attribute id="TimeStamp"[^>]*value=")[^"]*(")/, `$1${seconds}$2`);
     }
     await fs.writeFile(metaPath, meta, "utf8");
   }
@@ -694,12 +986,15 @@ async function configBody() {
 async function routeApi(req, res, url) {
   try {
     if (req.method === "GET" && url.pathname === "/api/config") return json(res, 200, await configBody());
+    if (req.method === "GET" && url.pathname === "/api/status-library") return await statusLibrary(res);
     if (req.method === "GET" && url.pathname === "/api/saves") return await listSaves(res);
     if (req.method === "GET" && url.pathname === "/api/thumbnail") return await thumbnail(res, url);
     if (req.method === "GET" && url.pathname === "/api/download") return await downloadSave(res, url);
 
     const body = await readBody(req);
     if (req.method === "POST" && url.pathname === "/api/details") return await details(res, body);
+    if (req.method === "POST" && url.pathname === "/api/save-characters") return await saveCharacters(res, body);
+    if (req.method === "POST" && url.pathname === "/api/tav-command") return await tavCommand(res, body);
     if (req.method === "POST" && url.pathname === "/api/get-text") return await getText(res, body);
     if (req.method === "POST" && url.pathname === "/api/put-text") return await putText(res, body);
     if (req.method === "POST" && url.pathname === "/api/backup") return await backupSave(res, body);

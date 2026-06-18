@@ -39,10 +39,16 @@ http://localhost:8081
 - Extracts a selected save into a local work copy.
 - Shows `SaveInfo.json`, `meta.lsx`, party summary, module list, and LevelCache levels.
 - Provides dropdowns for level ID and displayed save leader name.
+- Can edit displayed playtime hours in the extracted work copy.
 - Can rebuild active `modsettings.lsx` from a save's module order.
 - Can create a repacked edited copy without overwriting the original.
 - Includes a Script Extender gold command helper.
 - Includes an advanced existing-gold-stack edit for extracted `Globals.lsx`.
+- Scans `Globals.lsx` for saved character/ped rows, UUIDs, positions, templates, and current statuses.
+- Loads premade status IDs from the local BG3 `Data\Editor\Mods\...\StatusData` files when available.
+- Builds Script Extender commands to apply or remove statuses from a selected saved character/ped, a specific UUID, party members, nearby creatures/NPCs, enemies, or equipped item slots.
+- Includes a small character/ped command builder for logging, teleporting, reviving, healing, knocking out, or killing a selected UUID.
+- Includes a Tav command builder that opens the in-game character creator and repairs/logs the created Tav through Script Extender. It does not inject a full Tav directly into a save file.
 
 ## Important Safety Notes
 
